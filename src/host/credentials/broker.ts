@@ -15,7 +15,7 @@ import type {
 } from '../../shared/contracts/credentials.js'
 import { CodingNsRpcError } from '../rpc-table.js'
 import { CredentialService } from './service.js'
-import { resolveCommandPath, windowsShellInvocation } from '../cli-adapters/process-utils.js'
+import { windowsShellInvocation } from '../cli-adapters/process-utils.js'
 
 const REQUEST_TTL_MS = 8 * 60 * 60 * 1000
 const CLEANUP_INTERVAL_MS = 60 * 1000
@@ -255,11 +255,10 @@ export class CredentialBroker {
       if (environment.DISPLAY === undefined || environment.DISPLAY === '') environment.DISPLAY = 'codingns:0'
     }
     const [command, ...args] = input.argv
-    const executable = process.platform === 'win32' && !/[\\/]/u.test(command!)
-      ? await resolveCommandPath(command!) ?? command! : command!
-    // Unresolved bare names also cover cmd built-ins and launchers in input.cwd.
-    const batch = process.platform === 'win32' && (/\.(?:cmd|bat)$/iu.test(executable) || !/[\\/]/u.test(executable))
-    const invocation = batch ? windowsShellInvocation(executable, args) : { command: executable, args }
+    // Native executables receive literal argv. Bare commands and batch launchers
+    // retain cmd lookup (including input.cwd), without a separate discovery pass.
+    const batch = process.platform === 'win32' && !/\.(?:exe|com)$/iu.test(command!)
+    const invocation = batch ? windowsShellInvocation(command!, args) : { command: command!, args }
     const child = this.runSpawn(invocation.command, [...invocation.args], {
       cwd: input.cwd,
       env: environment,
